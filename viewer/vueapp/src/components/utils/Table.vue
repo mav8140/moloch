@@ -62,6 +62,8 @@
           :key="column.name"
           v-b-tooltip.hover
           :title="column.help"
+          @click.self="sort(column.sort)"
+          :class="{'cursor-pointer':column.sort}"
           :style="{'width': column.width + 'px'}">
           {{ column.name }}
           <button v-if="column.canClear"
@@ -73,9 +75,7 @@
             <span class="fa fa-ban">
             </span>
           </button>
-          <span v-if="column.sort"
-            class="cursor-pointer"
-            @click="sort(column.sort)">
+          <span v-if="column.sort">
             <span v-show="tableSortField === column.sort && !tableDesc" class="fa fa-sort-asc"></span>
             <span v-show="tableSortField === column.sort && tableDesc" class="fa fa-sort-desc"></span>
             <span v-show="tableSortField !== column.sort" class="fa fa-sort"></span>
@@ -86,8 +86,7 @@
     <transition-group tag="tbody"
       :name="tableAnimation">
       <!-- avg/total top rows -->
-      <!-- TODO v-if="showAvgTot && data && data.length > 9" -->
-      <template>
+      <template v-if="showAvgTot && data && data.length > 9">
         <tr class="border-top-bold bold average-row"
           key="averageRow">
           <td v-if="actionColumn">
@@ -95,7 +94,7 @@
           </td>
           <td v-for="(column, index) in computedColumns"
             :key="column.id + index + 'avg'">
-            {{ calculateTotAvgValue(column, index, averageValues) }}
+            {{ calculateTotAvgValue(column, averageValues) }}
           </td>
         </tr>
         <tr class="border-bottom-bold bold total-row"
@@ -105,7 +104,7 @@
           </td>
           <td v-for="(column, index) in computedColumns"
             :key="column.id + index + 'total'">
-            {{ calculateTotAvgValue(column, index, totalValues) }}
+            {{ calculateTotAvgValue(column, totalValues) }}
           </td>
         </tr>
       </template> <!-- /avg/total top rows -->
@@ -129,7 +128,6 @@
           <!-- cell value -->
           <td v-for="(column, colindex) in computedColumns"
             :key="column.id + colindex">
-            <!-- TODO test with negative values -->
             {{ calculateValue(column, item, index) }}
           </td> <!-- /cell value -->
         </tr>
@@ -154,15 +152,14 @@
       </tr> <!-- /no results -->
     </transition-group>
     <!-- avg/total bottom rows -->
-    <!-- TODO showAvgTot && data && data.length > 1 -->
-    <tfoot>
+    <tfoot v-if="showAvgTot && data && data.length > 1">
       <tr class="border-top-bold bold average-row">
         <td v-if="actionColumn">
           Avg
         </td>
         <td v-for="(column, index) in computedColumns"
           :key="column.id + index + 'avgfoot'">
-          {{ calculateTotAvgValue(column, index, averageValues) }}
+          {{ calculateTotAvgValue(column, averageValues) }}
         </td>
       </tr>
       <tr class="bold total-row">
@@ -171,7 +168,7 @@
         </td>
         <td v-for="(column, index) in computedColumns"
           :key="column.id + index + 'totalfoot'">
-          {{ calculateTotAvgValue(column, index, totalValues) }}
+          {{ calculateTotAvgValue(column, totalValues) }}
         </td>
       </tr>
     </tfoot> <!-- /avg/total bottom rows -->
@@ -443,7 +440,6 @@ export default {
         value = value - this.zeroMap[column.id][index];
       }
 
-      // TODO test
       if (value < 0) { // server reset, so update zeroMap
         this.zeroMap[column.id] = item[column.id];
         value = 0;
@@ -453,13 +449,16 @@ export default {
 
       return column.dataFunction ? column.dataFunction(itemClone) : value;
     },
-    calculateTotAvgValue: function (column, index, map) {
+    calculateTotAvgValue: function (column, map) {
       // if it's not a computed field value return empty immediately
       if (!column.doStats) { return ' '; }
 
       let value = map[column.id];
       if (this.zeroMap[column.id]) {
-        value = value - this.zeroMap[column.id][index];
+        // subtract all zeroed values for this column
+        for (let zeroVal of this.zeroMap[column.id]) {
+          value = value - zeroVal;
+        }
       }
 
       let mock = {};
